@@ -102,7 +102,6 @@ class RNNEncoder(EncoderBase):
             start_ind_sent_id = 0
             start_ind = sent_id[start_ind_sent_id]
 
-
             while (start_ind < output.size()[0]) and (start_ind_sent_id < sent_id.size()[0]):
 
 
@@ -115,7 +114,10 @@ class RNNEncoder(EncoderBase):
                     start_ind += sent_id[start_ind_sent_id]
                 else:
                     break
-
+            # Kylie: This change the first value of each batch in src_sents to be the length of the source. This is
+            # because the original src_sent is not cloned.
+            # This retrieves the hidden state of the last word from each sentence to the second layer of sentence
+            # encoder.
 
             # FEB 10, len check
             if len(sent_input_list) < common_len:
@@ -139,9 +141,10 @@ class RNNEncoder(EncoderBase):
 
 
         batch_input_list_concat = torch.cat(batch_input_list,1)
-
         # get the id of sent length:
-        sent_output, (h_, c_) = self.sent_rnn(batch_input_list_concat)
+        sent_output, (h_, c_) = self.sent_rnn(batch_input_list_concat)    # Kylie: batch_input_list_concat is the
+        # concatenated document representation where the hidden states of the last word in each sentence are retrieved.
+
         # LSTM(512, 256, bidirectional=True), sent_output has the same shape with batch_input_list_concat
 
 
@@ -299,6 +302,9 @@ class RNNEncoder(EncoderBase):
 
     def forward(self, src, src_sents=None, lengths=None):
         "forward_original"
+        """
+        Kylie: This is used by the encoder
+        """
         #print ('Original!')
         self._check_args(src, lengths)
 
@@ -314,7 +320,6 @@ class RNNEncoder(EncoderBase):
             # Lengths data is wrapped inside a Tensor.
             lengths = lengths.view(-1).tolist()
             packed_emb = pack(emb, lengths)
-
 
 
         memory_bank, encoder_final = self.rnn(packed_emb) # output, (hidden, cell), unpack using pad_packed_sequence(), encoder_final is the last state, a list (contains the batch)

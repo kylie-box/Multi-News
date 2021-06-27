@@ -192,7 +192,7 @@ def build_dataset(fields, data_type, src_data_iter=None, src_path=None,
                   src_dir=None, tgt_data_iter=None, tgt_path=None,
                   src_seq_length=0, tgt_seq_length=0,
                   src_seq_length_trunc=0, tgt_seq_length_trunc=0,
-                  dynamic_dict=True, sample_rate=0,
+                  dynamic_dict=True, record_single_stats=True, sample_rate=0,
                   window_size=0, window_stride=0, window=None,
                   normalize_audio=True, use_filter_pred=True,
                   image_channel_size=3):
@@ -200,7 +200,6 @@ def build_dataset(fields, data_type, src_data_iter=None, src_path=None,
     Build src/tgt examples iterator from corpus files, also extract
     number of features.
     """
-
     def _make_examples_nfeats_tpl(data_type, src_data_iter, src_path, src_dir,
                                   src_seq_length_trunc, sample_rate,
                                   window_size, window_stride,
@@ -254,7 +253,8 @@ def build_dataset(fields, data_type, src_data_iter=None, src_path=None,
                               src_seq_length=src_seq_length,
                               tgt_seq_length=tgt_seq_length,
                               dynamic_dict=dynamic_dict,
-                              use_filter_pred=use_filter_pred)
+                              use_filter_pred=use_filter_pred,
+                              record_single_stats=record_single_stats)
 
     elif data_type == 'img':
         dataset = ImageDataset(fields, src_examples_iter, tgt_examples_iter,
@@ -273,7 +273,6 @@ def build_dataset(fields, data_type, src_data_iter=None, src_path=None,
                                window=window,
                                normalize_audio=normalize_audio,
                                use_filter_pred=use_filter_pred)
-
     return dataset
 
 
@@ -556,10 +555,8 @@ def lazily_load_dataset(corpus_type, opt):
 
     def _lazy_dataset_loader(pt_file, corpus_type):
         dataset = torch.load(pt_file)
-        # logger.info('Loading %s dataset from %s, number of examples: %d' %
-        #             (corpus_type, pt_file, len(dataset)))
-        # import pdb;
-        # pdb.set_trace()
+        logger.info('Loading %s dataset from %s, number of examples: %d' %
+                    (corpus_type, pt_file, len(dataset)))
 
         return dataset
 

@@ -5,7 +5,7 @@ import torch
 import torch.cuda
 
 import onmt.inputters as inputters
-from onmt.utils.misc import aeq
+from onmt.utils.misc import aeq, cpu_tolist
 from onmt.utils import loss
 
 
@@ -103,6 +103,7 @@ class CopyGenerator(nn.Module):
                               .transpose(0, 1),
                               src_map.transpose(0, 1)).transpose(0, 1)
         copy_prob = copy_prob.contiguous().view(-1, cvocab)
+
         return torch.cat([out_prob, copy_prob], 1)
 
 
@@ -141,6 +142,7 @@ class CopyGeneratorCriterion(object):
             out = out + tmp.mul(align_unk)
 
         # Drop padding.
+
         loss = -out.log().mul(target.ne(self.pad).float())
         return loss
 
@@ -157,6 +159,7 @@ class CopyGeneratorLossCompute(loss.LossComputeBase):
             generator, tgt_vocab)
         self.force_copy = force_copy
         self.normalize_by_length = normalize_by_length
+        self.record_single_sent_stats = True
         self.criterion = CopyGeneratorCriterion(len(tgt_vocab), force_copy,
                                                 self.padding_idx)
 
@@ -165,15 +168,24 @@ class CopyGeneratorLossCompute(loss.LossComputeBase):
         if getattr(batch, "alignment", None) is None:
             raise AssertionError("using -copy_attn you need to pass in "
                                  "-dynamic_dict during preprocess stage.")
+        if self.record_single_sent_stats:
+            # Make sure that max_shard_... is large enough that we don't shard to compute the loss!
+            return {
+                "output": output,
+                "target": batch.tgt[range_[0] + 1: range_[1]],
+                "copy_attn": attns.get("copy"),
+                "align": batch.alignment[range_[0] + 1: range_[1]],
+                "tgt_sent_idx": batch.tgt_sent_idx
+            }
+        else:
+            return {
+                "output": output,
+                "target": batch.tgt[range_[0] + 1: range_[1]],
+                "copy_attn": attns.get("copy"),
+                "align": batch.alignment[range_[0] + 1: range_[1]]
+            }
 
-        return {
-            "output": output,
-            "target": batch.tgt[range_[0] + 1: range_[1]],
-            "copy_attn": attns.get("copy"),
-            "align": batch.alignment[range_[0] + 1: range_[1]]
-        }
-
-    def _compute_loss(self, batch, output, target, copy_attn, align):
+    def _compute_loss(self, batch, output, target, copy_attn, align, tgt_sent_idx):
         """
         Compute the loss. The args must match self._make_shard_state().
         Args:
@@ -182,12 +194,17 @@ class CopyGeneratorLossCompute(loss.LossComputeBase):
             target: the validate target to compare output with.
             copy_attn: the copy attention value.
             align: the align info.
+            tgt_sent_idx_lst: list of target sentence ids that are used in removing source sentences.
         """
         target = target.view(-1)
         align = align.view(-1)
         scores = self.generator(self._bottle(output),
                                 self._bottle(copy_attn),
                                 batch.src_map)
+        """
+        Kylie: Change here to get the loss of the sentence instead of the sum of the sharded part. Or we can fix the 
+        shard to be the maximum length of the sentence.
+        """
         loss = self.criterion(scores, align, target)
         scores_data = scores.data.clone()
         scores_data = inputters.TextDataset.collapse_copy_scores(
@@ -205,8 +222,24 @@ class CopyGeneratorLossCompute(loss.LossComputeBase):
 
         # Compute sum of perplexities for stats
         loss_data = loss.sum().data.clone()
-        stats = self._stats(loss_data, scores_data, target_data)
-
+        if not self.record_single_sent_stats:
+            stats = self._stats(loss_data, scores_data, target_data)   # Kylie: use batch.src_sent
+        else:
+            # Compute Total Loss per sequence in batch
+            loss = loss.view(-1, batch.batch_size)
+            # for each target sentence of interest, only compute the loss of this part in the target
+            tgt_sent_loss_lst = []
+            for i, tgt_idx in enumerate(tgt_sent_idx):
+                # +1 because the colon should also be included in the current sentence.
+                # No need to +1! because its index instead of the real length. The tgt_sent field already handles the
+                # index issue by -1 for the first length.
+                tgt_sent_range = range(batch.tgt_sents[i][:tgt_idx].sum(),
+                                       batch.tgt_sents[i][:tgt_idx + 1].sum())
+                tgt_sent_loss_lst.append(loss[:,i][tgt_sent_range].sum().item())
+            stats = self._stats(loss_data, scores_data, target_data, tgt_sent_loss_lst=tgt_sent_loss_lst,
+                                tgt_sent_idx=cpu_tolist(tgt_sent_idx),
+                                example_indices=cpu_tolist(batch.indices)
+                                )
         if self.normalize_by_length:
             # Compute Loss as NLL divided by seq length
             # Compute Sequence Lengths

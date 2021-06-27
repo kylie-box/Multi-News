@@ -328,6 +328,7 @@ class InputFeedRNNDecoder(RNNDecoderBase):
 
         scores =[]
         # define sent matrix and current vector distance as the Euclidean distance
+
         for sent in sent_encoder: # iterate over each batch sample
             # distance: https://pytorch.org/docs/stable/_modules/torch/nn/modules/distance.html
 
@@ -345,7 +346,7 @@ class InputFeedRNNDecoder(RNNDecoderBase):
             scores.append(sim2 - sim1)
 
 
-        sent_ranking_att = torch.t(torch.cat(scores,1)) #(sent_len=9,batch_size)
+        sent_ranking_att = torch.t(torch.cat(scores,1)) #(num_of_sents=9,batch_size)
         sent_ranking_att = torch.softmax(sent_ranking_att, dim=0).permute(1,0)  #(sent_len=9,batch_size)
         # scores is a list of score (sent_len=9, tensor shape (batch_size, 1))
         mmr_among_words = [] # should be (batch=2,input_step=200)

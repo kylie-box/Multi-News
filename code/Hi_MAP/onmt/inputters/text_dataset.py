@@ -42,8 +42,9 @@ class TextDataset(DatasetBase):
     def __init__(self, fields, src_examples_iter, tgt_examples_iter,
                  num_src_feats=0, num_tgt_feats=0,
                  src_seq_length=0, tgt_seq_length=0,
-                 dynamic_dict=True, use_filter_pred=True):
+                 dynamic_dict=True, use_filter_pred=True, record_single_sent_stats=True):
         self.data_type = 'text'
+        self.record_single_sent_stats = record_single_sent_stats
 
         # self.src_vocabs: mutated in dynamic_dict, used in
         # collapse_copy_scores and in Translator.py
@@ -167,7 +168,6 @@ class TextDataset(DatasetBase):
 
         first_ex = next(examples_nfeats_iter)
         num_feats = first_ex[1]
-
         # Chain back the first element - we only want to peek it.
         examples_nfeats_iter = chain([first_ex], examples_nfeats_iter)
         examples_iter = (ex for ex, nfeats in examples_nfeats_iter)
@@ -194,7 +194,6 @@ class TextDataset(DatasetBase):
 
             words, feats, n_feats = \
                 TextDataset.extract_text_features(line)
-
             # print (line)
             # print (words)
 
@@ -228,7 +227,6 @@ class TextDataset(DatasetBase):
 
 
         fields = {}
-
 
         fields["src"] = torchtext.data.Field(
             pad_token=PAD_WORD,
@@ -304,6 +302,9 @@ class TextDataset(DatasetBase):
             use_vocab=False, dtype=torch.long, postprocessing=make_sents,sequential=False)
         fields["tgt_sents"] = torchtext.data.Field(
             use_vocab=False, dtype=torch.long, postprocessing=make_sents,sequential=False)
+        fields["tgt_sent_idx"] = torchtext.data.Field(
+            use_vocab=False, dtype=torch.long, sequential=False)
+
 
         return fields
 
@@ -356,13 +357,13 @@ class TextDataset(DatasetBase):
             src = example["src"] # src is a list of words
             # print ('....',src)
 
-
             #TODO We add here
             # get sentence length
             sent = ' '.join(src)
             sents = sent_tokenize(sent)
 
-            n_sents = [len(x.split(' ')) for x in sents]
+            n_sents = [len(x.split(' ')) for x in sents]  # [12,34, 45] means the first sentence not including colon
+            # is of length 12. if compute the corresponding loss for the first sentence, need to +1 for each element
             if len(n_sents) < 1 : # empty line
                 n_sents = [0]
             else:
@@ -378,17 +379,29 @@ class TextDataset(DatasetBase):
 
             if "tgt" in example:
                 tgt = example["tgt"]
+                sent = ' '.join(tgt)
+                # Kylie: the idx of the target sent is in the <tgt_id> split
+                if self.record_single_sent_stats:
+                    tmp = sent.split('<tgt_id>')
+                    assert len(tmp) == 2, "target sentence index not available."
+                    tgt_idx = int(tmp[0].strip())
+                    sent = tmp[1].strip()
+                    example['tgt'] = tuple(sent.split())
+                    example['tgt_sent_idx'] = tgt_idx
+
                 mask = torch.LongTensor(
                     [0] + [src_vocab.stoi[w] for w in tgt] + [0])
                 example["alignment"] = mask
 
                 #TODO We add here
                 # get sentence length
-                sent = ' '.join(tgt)
+
+
                 sents = sent_tokenize(sent)
                 n_sents = [len(x.split(' ')) for x in sents]
                 n_sents[0] = n_sents[0] - 1  # change on the first one
                 example["tgt_sents"] = torch.LongTensor(n_sents)
+
 
             yield example
 

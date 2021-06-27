@@ -7,6 +7,7 @@ import sys
 from torch.distributed import get_rank
 from onmt.utils.distributed import all_gather_list
 from onmt.utils.logging import logger
+import torch
 
 
 class Statistics(object):
@@ -19,12 +20,16 @@ class Statistics(object):
     * elapsed time
     """
 
-    def __init__(self, loss=0, n_words=0, n_correct=0):
+    def __init__(self, loss=0, n_words=0, n_correct=0,
+                 tgt_sent_loss_lst=None, tgt_sent_idx=None, example_indices=None):
         self.loss = loss
         self.n_words = n_words
         self.n_correct = n_correct
         self.n_src_words = 0
         self.start_time = time.time()
+        self.tgt_sent_loss = tgt_sent_loss_lst # stores a list of sentence loss in a list
+        self.tgt_sent_idx = tgt_sent_idx  # the corresponding target sentence
+        self.example_indices = example_indices
 
     @staticmethod
     def all_gather_stats(stat, max_size=4096):
@@ -81,6 +86,20 @@ class Statistics(object):
         self.n_words += stat.n_words
         self.n_correct += stat.n_correct
 
+        if self.tgt_sent_loss is None:
+            self.tgt_sent_loss = stat.tgt_sent_loss
+        else:
+            self.tgt_sent_loss.extend(stat.tgt_sent_loss) # append the new sharded loss/ Kylie: maybe
+        # should giveup on sharded loss compute? use the whole sentence to compute the loss?
+        if self.tgt_sent_idx is None:
+            self.tgt_sent_idx = stat.tgt_sent_idx
+        else:
+            self.tgt_sent_idx.extend(stat.tgt_sent_idx)
+        if self.example_indices is None:
+            self.example_indices = stat.example_indices
+        else:
+            self.example_indices.extend(stat.example_indices)
+
         if update_n_src_words:
             self.n_src_words += stat.n_src_words
 
@@ -130,3 +149,12 @@ class Statistics(object):
         writer.add_scalar(prefix + "/accuracy", self.accuracy(), step)
         writer.add_scalar(prefix + "/tgtper", self.n_words / t, step)
         writer.add_scalar(prefix + "/lr", learning_rate, step)
+
+    def write_single_sents_loglikelihood_results(self, out_file):
+        sorted_loglikelihoods = [self.tgt_sent_loss[example_idx] for example_idx in self.example_indices]
+        sorted_tgt_sent_idx = [self.tgt_sent_idx[example_idx] for example_idx in self.example_indices]
+        with open(out_file, 'w') as f:
+            f.write('summary_sentence_id,loglikelihood\n')
+            for tgt_sent_idx, score in zip(sorted_tgt_sent_idx, sorted_loglikelihoods):
+                f.write("%d,%f\n" % (tgt_sent_idx, score))
+

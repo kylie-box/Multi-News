@@ -141,8 +141,11 @@ def main(opt, device_id):
         lazily_load_dataset("valid", opt), fields, opt, is_train=False)
 
     # Do training.
-    trainer.train(train_iter_fct, valid_iter_fct, opt.train_steps,
-                  opt.valid_steps)
+    # Kylie: if running the loss compute, the train_steps equals to the number of examples.
+    total_stats = trainer.train(train_iter_fct, valid_iter_fct, opt.train_steps,
+                    opt.valid_steps)
+    if opt.record_single_sent_stats:
+        total_stats.write_single_sents_loglikelihood_results(opt.loss_score_out_file)
 
     if opt.tensorboard:
         trainer.report_manager.tensorboard_writer.close()

@@ -188,7 +188,6 @@ class Trainer(object):
                             step, train_steps,
                             self.optim.learning_rate,
                             report_stats)
-
                         true_batchs = []
                         accum = 0
                         normalization = 0
@@ -218,7 +217,7 @@ class Trainer(object):
                 logger.info('GpuRank %d: we completed an epoch \
                             at step %d' % (self.gpu_rank, step))
             train_iter = train_iter_fct()
-
+        import pdb;pdb.set_trace()
         return total_stats
 
     def validate(self, valid_iter):
@@ -268,7 +267,6 @@ class Trainer(object):
             # the actual length is given:
             # >> batch.src_sents (tgt_sents)
             # >> tensor([10, 9, 5, 11, 10, 9, 10, 9, 9, 6], device='cuda:0')
-
             src_sents = batch.src_sents
             # print(src_sents)
 
@@ -288,7 +286,6 @@ class Trainer(object):
                 src_lengths = None
 
             tgt_outer = inputters.make_features(batch, 'tgt')
-
             for j in range(0, target_size-1, trunc_size):
                 # 1. Create truncated target.
                 tgt = tgt_outer[j: j + trunc_size]
@@ -302,7 +299,7 @@ class Trainer(object):
                 outputs, attns, dec_state = \
                     self.model(src, tgt, src_sents, src_lengths, dec_state)
 
-                # 3. Compute loss in shards for memory efficiency.
+                # 3. Compute loss in shards for memory efficiency. Kylie: should we remove the shard??
                 batch_stats = self.train_loss.sharded_compute_loss(
                     batch, outputs, attns, j,
                     trunc_size, self.shard_size, normalization)

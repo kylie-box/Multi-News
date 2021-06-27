@@ -53,3 +53,6 @@ def use_gpu(opt):
     """
     return (hasattr(opt, 'gpu_ranks') and len(opt.gpu_ranks) > 0) or \
         (hasattr(opt, 'gpu') and opt.gpu > -1)
+
+def cpu_tolist(tensor):
+    return tensor.clone().cpu().numpy().tolist()

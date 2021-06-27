@@ -1,7 +1,8 @@
-python preprocess.py -train_src /home/lily/af726/spring-2019/summarization_general/data-final/data-truncated-opennmt/train.txt.src.tokenizd.fixed.cleaned.truncated \
-                     -train_tgt /home/lily/af726/spring-2019/summarization_general/data-final/data-truncated-opennmt/train.txt.tgt.tokenizd.fixed.cleaned.truncated \
-                     -valid_src /home/lily/af726/spring-2019/summarization_general/data-final/data-truncated-opennmt/val.txt.src.tokenizd.fixed.cleaned.truncated \
-                     -valid_tgt /home/lily/af726/spring-2019/summarization_general/data-final/data-truncated-opennmt/val.txt.tgt.tokenizd.fixed.cleaned.truncated \
+truncated=/home/mila/h/hejingyi/Documents/Dataset/multi-news/truncated/temp
+python preprocess.py -train_src $truncated/train.txt.src.tokenized.fixed.cleaned.final.truncated \
+                     -train_tgt $truncated/train.txt.tgt.tokenized.fixed.cleaned.final.truncated \
+                     -valid_src $truncated/val.txt.src.tokenized.fixed.cleaned.final.truncated \
+                     -valid_tgt $truncated/val.txt.tgt.tokenized.fixed.cleaned.final.truncated \
                      -save_data newser_sent_500/newser_sents \
                      -src_seq_length 10000 \
                      -tgt_seq_length 10000 \

@@ -42,9 +42,7 @@ class NMTModel(nn.Module):
         """
         tgt = tgt[:-1]  # exclude last target from inputs ?? why
 
-        # import pdb;pdb.set_trace()
         old_src_sents = src_sents.clone()
-
 
         enc_final, memory_bank, sent_encoder = self.encoder(src,src_sents,lengths)
 

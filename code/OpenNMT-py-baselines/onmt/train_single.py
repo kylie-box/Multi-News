@@ -98,7 +98,7 @@ def main(opt, device_id):
     fields = _load_fields(first_dataset, data_type, opt, checkpoint)
 
     # Report src/tgt features.
-
+    import pdb;pdb.set_trace()
     src_features, tgt_features = _collect_report_features(fields)
     for j, feat in enumerate(src_features):
         logger.info(' * src feature %d size = %d'

@@ -331,10 +331,16 @@ def train_opts(parser):
                        help='Perfom validation every X steps')
     group.add_argument('-valid_batch_size', type=int, default=32,
                        help='Maximum batch size for validation')
+    # Kylie: this is the bad sharding guy to the decoder!! If compute loss of the target sentence, don't shard!!
     group.add_argument('-max_generator_batches', type=int, default=32,
                        help="""Maximum batches of words in a sequence to run
                         the generator on in parallel. Higher is faster, but
                         uses more memory.""")
+    group.add_argument('-record_single_sent_stats', action='store_true',
+                       help="Use for Kylie's likelihood change project. write score file for the"
+                            "target sentence of interest.")
+    group.add_argument('-loss_score_out_file', type=str,
+                       help="The file to which the target sentence loss will write.")
     group.add_argument('-train_steps', type=int, default=100000,
                        help='Number of training steps')
     group.add_argument('-epochs', type=int, default=0,
